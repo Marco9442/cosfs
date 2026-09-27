@@ -1,0 +1,68 @@
+name: 上游同步并发版
+
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 同一上游提交也重新发版
+        type: boolean
+        default: false
+
+concurrency:
+  group: cosfs-ubuntu26-release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.sync.outputs.release }}
+      tag: ${{ steps.sync.outputs.tag }}
+      version: ${{ steps.sync.outputs.version }}
+      upstream: ${{ steps.sync.outputs.upstream }}
+      sha: ${{ steps.sync.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+      - name: 合并上游
+        id: sync
+        env:
+          FORCE: ${{ inputs.force == true && 'true' || 'false' }}
+          GH_TOKEN: ${{ github.token }}
+        run: bash packaging/ubuntu2604/sync-upstream.sh
+
+  release:
+    needs: sync
+    if: needs.sync.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ needs.sync.outputs.sha }}
+      - name: 构建安装包
+        env:
+          DEB_VERSION: ${{ needs.sync.outputs.version }}
+          UPSTREAM_SHA: ${{ needs.sync.outputs.upstream }}
+          RELEASE_TAG: ${{ needs.sync.outputs.tag }}
+          DIST_DIR: ${{ runner.temp }}/cosfs-dist
+        run: bash packaging/ubuntu2604/build-deb.sh
+      - name: 发布
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.sync.outputs.tag }}
+          DIST_DIR: ${{ runner.temp }}/cosfs-dist
+          TARGET: ${{ needs.sync.outputs.sha }}
+        run: |
+          gh release create "$RELEASE_TAG" "$DIST_DIR"/*.deb \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "$RELEASE_TAG" \
+            --notes-file "$DIST_DIR/NOTES.md" \
+            --target "$TARGET"
