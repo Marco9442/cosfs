@@ -19,7 +19,7 @@ permissions:
 
 jobs:
   sync:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     outputs:
       release: ${{ steps.sync.outputs.release }}
       tag: ${{ steps.sync.outputs.tag }}
@@ -27,7 +27,7 @@ jobs:
       upstream: ${{ steps.sync.outputs.upstream }}
       sha: ${{ steps.sync.outputs.sha }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: master
@@ -41,9 +41,9 @@ jobs:
   release:
     needs: sync
     if: needs.sync.outputs.release == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ needs.sync.outputs.sha }}
